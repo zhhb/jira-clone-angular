@@ -1,14 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { arrayRemove, arrayUpsert } from '@datorama/akita';
+import { arrayRemove, arrayUpsert, setLoading } from '@datorama/akita';
 import { JComment } from '@trungk18/interface/comment';
 import { JIssue } from '@trungk18/interface/issue';
 import { JProject } from '@trungk18/interface/project';
-import { of, Subscription } from 'rxjs';
-import { catchError, finalize, map } from 'rxjs/operators';
+import { DateUtil } from '@trungk18/project/utils/date';
+import { of } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 import { ProjectStore } from './project.store';
-import { DateUtil } from '@trungk18/project/utils/date';
 
 @Injectable({
   providedIn: 'root'
@@ -24,21 +24,18 @@ export class ProjectService {
     this._store.setLoading(isLoading);
   }
 
-  getProject(): Subscription {
-    this.setLoading(true);
-    return this._http
-      .get<JProject>(`${this.baseUrl}/project`)
+  getProject() {
+    this._http
+      .get<JProject>(`${this.baseUrl}/project.json`)
       .pipe(
-        map((project) => {
+        setLoading(this._store),
+        tap((project) => {
           this._store.update((state) => {
             return {
               ...state,
               ...project
             };
           });
-        }),
-        finalize(() => {
-          this.setLoading(false);
         }),
         catchError((error) => {
           this._store.setError(error);
@@ -58,7 +55,7 @@ export class ProjectService {
   updateIssue(issue: JIssue) {
     issue.updatedAt = DateUtil.getNow();
     this._store.update((state) => {
-      let issues = arrayUpsert(state.issues, issue.id, issue);
+      const issues = arrayUpsert(state.issues, issue.id, issue);
       return {
         ...state,
         issues
@@ -68,7 +65,7 @@ export class ProjectService {
 
   deleteIssue(issueId: string) {
     this._store.update((state) => {
-      let issues = arrayRemove(state.issues, issueId);
+      const issues = arrayRemove(state.issues, issueId);
       return {
         ...state,
         issues
@@ -77,13 +74,13 @@ export class ProjectService {
   }
 
   updateIssueComment(issueId: string, comment: JComment) {
-    let allIssues = this._store.getValue().issues;
-    let issue = allIssues.find((x) => x.id === issueId);
+    const allIssues = this._store.getValue().issues;
+    const issue = allIssues.find((x) => x.id === issueId);
     if (!issue) {
       return;
     }
 
-    let comments = arrayUpsert(issue.comments ?? [], comment.id, comment);
+    const comments = arrayUpsert(issue.comments ?? [], comment.id, comment);
     this.updateIssue({
       ...issue,
       comments
